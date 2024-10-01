@@ -1,14 +1,14 @@
 {
-  description = "A nixvim configuration";
+  description = "A nixvim configuration with devShells";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixvim.url = "github:nix-community/nixvim";
     flake-parts.url = "github:hercules-ci/flake-parts";
   };
 
   outputs =
-    { nixvim, flake-parts, ... }@inputs:
+    { nixpkgs, nixvim, flake-parts, ... }@inputs:
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [
         "x86_64-linux"
@@ -17,31 +17,40 @@
         "aarch64-darwin"
       ];
 
-      perSystem =
-        { pkgs, system, ... }:
-        let
-          nixvimLib = nixvim.lib.${system};
-          nixvim' = nixvim.legacyPackages.${system};
-          nixvimModule = {
-            inherit pkgs;
-            module = import ./config; # import the module directly
-            # You can use `extraSpecialArgs` to pass additional arguments to your module files
-            extraSpecialArgs = {
-              # inherit (inputs) foo;
-            };
-          };
-          nvim = nixvim'.makeNixvimWithModule nixvimModule;
-        in
-        {
-          checks = {
-            # Run `nix flake check .` to verify that your config is not broken
-            default = nixvimLib.check.mkTestDerivationFromNixvimModule nixvimModule;
-          };
+      perSystem = { pkgs, system, ... }: let
+        nixvimLib = nixvim.lib.${system};
+        nixvim' = nixvim.legacyPackages.${system};
+        nixvimModule = {
+          inherit pkgs;
+          module = import ./config; # import your module directly
+          extraSpecialArgs = {};
+        };
 
-          packages = {
-            # Lets you run `nix run .` to start nixvim
-            default = nvim;
+        nvim = nixvim'.makeNixvimWithModule nixvimModule;
+      in {
+        checks = {
+          default = nixvimLib.check.mkTestDerivationFromNixvimModule nixvimModule;
+        };
+
+        packages = {
+          default = nvim;
+        };
+
+        devShells = {
+          default = pkgs.mkShell {
+            buildInputs = [
+              pkgs.cmake
+              pkgs.gcc
+              pkgs.python310Full
+              pkgs.neovim  # You can replace this with `nvim` from nixvim if needed
+            ];
+
+            shellHook = ''
+              echo "DevShell ready with Neovim and other tools!"
+            '';
           };
         };
+      };
     };
 }
+
